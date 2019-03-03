@@ -5,8 +5,8 @@
 #
 # version 0.1
 # fix
-# 1. get specified player base data
-# 2. simple data getter flow
+# 1. get specified player base data @done
+# 2. simple data getter flow @done
 # 
 # version 1.0
 # change log file to /Users/rnt/Develop/Logs/xbox_checker.log
@@ -15,14 +15,23 @@
 # 2. the output data extension now is json
 # 3. remove the temp variables with comment
 # todo
-# 1. create "gametag and xuid link file"
-# 2. support more api
-# 3. game title id database
-# 4. achievement database
+# 1. create "gametag and xuid link file" @done
+# 2. support more api @delay
+# 3. game title id database @cancel @comment:this festure handled by python program
+# 4. achievement database @cancel @comment:this festure handled by python program
+#
+# version 1.1
+# fix
+# 1. use relative path
+# todo
+# 1. use relative path @done
+# 2. support more api @delay
+# 
 
 # log file settings
-logfile="/Users/rnt/Develop/Logs/xbox_checker.test.log"
+logfile="../log/xbox.checker.log"
 timestamp=`date '+%s'`
+
 function logger(){
     id=$1
     logpath=$logfile
@@ -33,35 +42,26 @@ function logger(){
 }
 
 # input data settings
-config=""
-playeridfile="/Users/rnt/Develop/Datas/XboxChecker/input_players_id.txt"
+playeridfile="../config/gametags.txt"
 
 # data floder settings
-datafolder="/Users/rnt/Develop/Datas/XboxChecker/"
+datafolder="../data/"
+# 暂不使用该文件
 playerdatafile="$datafolder/playerdata.txt"
 # 玩家数据拉取之后单独保存到单个文件中
 # 文件命名规则:
 # 时间戳_{gametag}.json
 
 # API settings
-apikey="429d4c17805d4c9f015377733cb437370c16459f"
+apifile="../config/api.config.ini"
+apikey=$(cat $apifile | awk '{print $0}')
 basecommand="curl -s -H \"X-AUTH: $apikey\""
-# echo $basecommand
-
-# temp data
-# gametag="SevenFii"
-# xuid="2535421044468041"
-# titleid="175227487" #apex title
-
 
 # request urls
 baseurl="https://xboxapi.com"
 getXUID="$baseurl/v2/xuid/"
 xboxoneGame1="$baseurl/v2/"  # {xuid}
 xboxoneGame2="/xboxonegames"
-
-echo "test flow,get player's xboxone games"
-
 
 function getSingleXoneGameData(){
     timestamp=`date '+%s'` # 单次操作时间戳(id)
@@ -83,8 +83,9 @@ function getSingleXoneGameData(){
     logger $timestamp "$command"
     logger $timestamp "the data path is $filename"
     eval $command >> $filename
+    # delete the temp file
+    rm $tempfile
 }
-
 
 playerarray=($(cat $playeridfile | awk '{gsub(" ","%20",$0);print $0}'))
 len=${#playerarray[@]}
@@ -92,3 +93,5 @@ for s in ${playerarray[@]}
 do
     getSingleXoneGameData $s
 done
+
+echo "done"
