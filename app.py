@@ -10,7 +10,7 @@ todo
 5. 日志支持
 6. 保留本地原始文件
 7. clear 命令, 清除本地多余文件
-8. 从外部文件读取 api
+8. 从外部文件读取 api @done
 '''
 
 import argparse
@@ -27,6 +27,7 @@ headers = {}
 
 # config setting
 conf = configparser.ConfigParser()
+conf_api = configparser.ConfigParser()
 
 # files path
 current_path = os.path.abspath('.')
@@ -34,9 +35,13 @@ data_path = current_path + "/data"
 config_path = current_path + "/config"
 log_path = current_path + "/log"
 
+# api url
+api_urls = {}
+
 # constant
 LOG_NAME = "/app.log"
 CONFIG_NAME = "/app.config.ini"
+CONFIG_API_NAME = "/api.url.ini"
 
 
 def load_config():
@@ -45,6 +50,25 @@ def load_config():
     apikey = conf['default']['apikey']
     global headers
     headers = {'X-AUTH': apikey}
+
+
+def load_api_url():
+    global api_urls
+    conf_api.read(config_path + CONFIG_API_NAME)
+    sections = conf_api.sections()
+    for section in sections:
+        options = conf_api.options(section)
+        api_urls[section] = {}
+        for option in options:
+            api_urls[section][option] = conf_api[section][option]
+            
+
+def get_api_url(api_name):
+    base_url = api_urls['base']['url']
+    specific_url = api_urls[api_name]['url']
+    return base_url + specific_url
+
+    
 
 
 def search(gametag):
@@ -97,6 +121,10 @@ def test(message):
     elif message == 'info':
         print("show debug info")
         print("python file itself's absoulte path is {}".format(current_path))
+    elif message == 'api':
+        load_api_url()
+        print("get the api url \"Account XUID\" : {}".format(get_api_url("Account XUID")))
+
 
 
 # command filter
