@@ -58,20 +58,16 @@ def load_config():
 
 
 def search(gametag):
-    provider = dp.DataProvider("default.db",CONFIG_NAME)
+    provider = dp.DataProvider(CONFIG_NAME)
     xuid = provider.get_xuid(gametag)
     print(xuid)
 
 
 def info(gametag):
-    print("execute func : info")
-    # get the user's xuid
-    xuid = get_xuid(gametag)
-    xboxonegames = get_xboxone_games(xuid)
-    # get the xbox one game list with details
-    # print(xboxonegames)
-
-    # 解析 json 数据
+    provider = dp.DataProvider(CONFIG_NAME)
+    xuid = provider.get_xuid(gametag)
+    result = provider.get_player_onegames(xuid)
+    print(result)
 
 
 def download(gametag):

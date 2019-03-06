@@ -6,6 +6,7 @@ import configparser
 import requests
 import re
 import os
+import json
 
 from . import api_supporter 
 
@@ -16,11 +17,12 @@ class DataProvider:
     database = "test.db"
     api_key = "apikey"
 
-    def __init__(self,database,config_file):
+    def __init__(self,config_file,database = "test.db"):
         self.database = database
         cparser = configparser.ConfigParser()
         cparser.read(config_file)
         self.api_key = cparser['default']['apikey']
+
         # init the DataBaseHelper and NetworkRequester
         self.data_helper = DataBaseHelper()
         self.request_helper = NetworkRequester(self.api_key)
@@ -30,10 +32,10 @@ class DataProvider:
         # 从数据库查询
         result = self.data_helper.get_xuid(gametag)
         if  result['isSuccess'] :
-            print("read data from local database")
+            print("read xuid data from local database")
             return result['content']
         else:
-            print("loacl databse has no data")
+            print("loacl databse has no xuid data")
             # 从 api 拉取
             r = self.request_helper.request("Gamertag XUID",gamertag = gametag)
             if r.status_code == 200:
@@ -48,7 +50,46 @@ class DataProvider:
         return "gametag"
 
     def get_player_onegames(self,xuid):
-        return "xboxonegames"
+        result = self.data_helper.get_own_one_games(xuid)
+        print_list = []
+        if  result['isSuccess'] :
+            print("read xbox one games data from local database")
+            # 返回拥有的 title id
+            title_list = result['content']
+            # 循环查询游戏具体信息
+            for title in title_list:
+                detail = self.data_helper.get_one_game_detail(title[0])
+                if detail['isSuccess']:
+                    print_list.append(detail['content'])
+                else:
+                    # 如果没有查询到,说明数据库内有脏数据
+                    print_list.append("dirty data in database")
+        else:
+            print("loacl databse has no xbox one games data")
+            r = self.request_helper.request("Xbox ONE Games",xuid = xuid)
+            if r.status_code == 200:
+                # 写入数据库
+                json_str = r.text
+                json_data = json.loads(json_str)
+                title_list = json_data['titles']
+                for title in title_list:
+                    # 根据 json 生成 print list
+                    print_list.append({
+                        'name' : title['name'],
+                        'titleId' : title['titleId'],
+                        'titleType' : title['titleType'],
+                        'platform' : title['platform'],
+                        'maxGamerscore' : title['maxGamerscore']
+                    })
+                    # 写入 own 
+                    self.data_helper.insert_own(xuid,title['titleId'])
+                    # 写入 detail
+                    # 查询该游戏是否存在
+                    if not self.data_helper.get_one_game_detail(title['titleId'])['isSuccess']:
+                        self.data_helper.insert_game_detail(title['name'],title['titleId'],title['titleType'],title['platform'],title['maxGamerscore'])
+            else:
+                print_list.append("didn't get the xuid form xboxapi.com , the result is {}".format(r.text))
+        return print_list
 
     def get_player_360games(self,xuid):
         return "360 games"
@@ -122,6 +163,7 @@ class DataBaseHelper:
 
     def __init__(self,database = "default.db"):
         self.database = os.path.abspath('.') + '/data/' + database
+        print("debug: database is {}".format(self.database))
         self.__check_table_stat()
 
 
@@ -139,15 +181,52 @@ class DataBaseHelper:
                 'content' : None
             }
 
-    def get_gametag(self,xuid):
-        pass
+    def get_own_one_games(self,xuid):
+        sql = 'SELECT title_id FROM gamer_own_game where xuid = ?'
+        result = self.execute_sql(sql,xuid)
+        print("debug : own one games select result , the result list is {}".format(result['result_list']))
+        if len(result['result_list']) > 0:
+            return {
+                'isSuccess' : True,
+                'content' : result['result_list']
+            }
+        else:
+            return{
+                'isSuccess' : False,
+                'content' : None
+            }
+    
+    def get_one_game_detail(self,title_id):
+        sql = 'select name,title_id,titleType,maxGamerscore from games where title_id = ?'
+        result = self.execute_sql(sql,title_id)
+        if len(result['result_list']) > 0:
+            return {
+                'isSuccess' : True,
+                'content' : result['result_list']
+            }
+        else:
+            return{
+                'isSuccess' : False,
+                'content' : None
+            }
 
+    def insert_own(self,xuid,title_id):
+        sql = "insert into gamer_own_game(xuid,title_id) VALUES (?,?)"
+        result = self.execute_sql(sql,xuid,title_id)
+        return result['count']
+    
+    def insert_game_detail(self,name,title_id,title_type,platform,score):
+        sql = "insert  into games(name, title_id, titleType, platform, maxGamerscore) values (?,?,?,?,?)"
+        result = self.execute_sql(sql,name,title_id,title_type,platform,score)
+        return result['count']
 
     def insert_gamertag_and_xuid(self,gamertag,xuid):
         sql = "insert into gamer_info(gamertag,xuid) values (?,?)"
         result = self.execute_sql(sql,gamertag,xuid)
         return result['count']
 
+    def get_gametag(self,xuid):
+        pass
 
     def execute_sql(self,sql,*values):
         # print("the vaules is {}".format(values))
@@ -191,7 +270,8 @@ class DataBaseHelper:
 
     def __create_all_tables(self):
         self.__create_gamer_table()
-
+        self.__create_games_games()
+        self.__create_gamer_own_game()
     
 
 
@@ -203,7 +283,27 @@ class DataBaseHelper:
 				xuid text NOT NULL,
 				onegame_count integer,
 				threegame_count integer,
-				achievement_point integer
-				)''')
+				achievement_point integer)''')
+        cursor.close()
+        self.__close_conn()
+
+    def __create_games_games(self):
+        cursor =  self.__get_conn().cursor()
+        cursor.execute('''CREATE TABLE IF NOT EXISTS games(
+            id integer PRIMARY KEY AUTOINCREMENT,
+            name text NOT NULL,
+            title_id text NOT NULL,
+            titleType text NOT NULL,
+            platform text NOT NULL,
+            maxGamerscore integer NOT NULL)''')
+        cursor.close()
+        self.__close_conn()
+
+    def __create_gamer_own_game(self):
+        cursor =  self.__get_conn().cursor()
+        cursor.execute('''create table IF NOT EXISTS gamer_own_game(
+            id integer primary key autoincrement,
+            xuid text not null,
+            title_id text not null)''')
         cursor.close()
         self.__close_conn()
