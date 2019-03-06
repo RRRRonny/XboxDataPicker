@@ -17,10 +17,12 @@ import argparse
 import requests
 import configparser
 import re
-import sqlite3
 import json
 import os
 
+# custom moudle
+import core.data_provider as dp
+import core.api_supporter as api_supporter
 
 # request header use in request function
 headers = {}
@@ -40,35 +42,18 @@ api_urls = {}
 
 # constant
 LOG_NAME = "/app.log"
-CONFIG_NAME = "/app.config.ini"
-CONFIG_API_NAME = "/api.url.ini"
+#todo
+CONFIG_NAME =config_path + "/app.config.ini"
+CONFIG_API_NAME = config_path + "/api.url.ini"
 
 
 def load_config():
     global conf
-    conf.read(config_path + CONFIG_NAME)
+    conf.read(CONFIG_NAME)
     apikey = conf['default']['apikey']
     global headers
     headers = {'X-AUTH': apikey}
 
-
-def load_api_url():
-    global api_urls
-    conf_api.read(config_path + CONFIG_API_NAME)
-    sections = conf_api.sections()
-    for section in sections:
-        options = conf_api.options(section)
-        api_urls[section] = {}
-        for option in options:
-            api_urls[section][option] = conf_api[section][option]
-            
-
-def get_api_url(api_name):
-    base_url = api_urls['base']['url']
-    specific_url = api_urls[api_name]['url']
-    return base_url + specific_url
-
-    
 
 
 def search(gametag):
@@ -96,20 +81,32 @@ def download(gametag):
     print("download : now unavailable")
 
 
+def mfilter(filter):
+    print("filter : now unavailbale")
+
+
 def test(message):
     print("execute func : test")
     # test the sqlite
     if message == 'db':
-        conn = sqlite3.connect('data/test.db')
-        c = conn.cursor()
-        c.execute('''CREATE TABLE COMPANY
-       (ID INT PRIMARY KEY     NOT NULL,
-       NAME           TEXT    NOT NULL,
-       AGE            INT     NOT NULL,
-       ADDRESS        CHAR(50),
-       SALARY         REAL);''')
-        conn.commit()
-        conn.close()
+    #     conn = sqlite3.connect('data/test.db')
+    #     c = conn.cursor()
+    #     c.execute('''CREATE TABLE COMPANY
+    #    (ID INT PRIMARY KEY     NOT NULL,
+    #    NAME           TEXT    NOT NULL,
+    #    AGE            INT     NOT NULL,
+    #    ADDRESS        CHAR(50),
+    #    SALARY         REAL);''')
+    #     conn.commit()
+    #     conn.close()
+        db_helper = dp.DataBaseHelper('data/test.db')
+        conn = db_helper.get_conn()
+        cursor = conn.cursor()
+        cursor.execute()
+
+
+
+
     elif message == 'json':
         datafile = 'data/1551625760_SevenFii_2535421044468041.json'
         with open(datafile,'r') as f:
@@ -122,8 +119,8 @@ def test(message):
         print("show debug info")
         print("python file itself's absoulte path is {}".format(current_path))
     elif message == 'api':
-        load_api_url()
-        print("get the api url \"Account XUID\" : {}".format(get_api_url("Account XUID")))
+        supporter = api_supporter.ApiSupporter(CONFIG_API_NAME)
+        print("get the api url \"Account XUID\" : {}".format(supporter.get_api_url("Account XUID")))
 
 
 
@@ -132,6 +129,7 @@ command_filter = {
     'search': search,
     'info': info,
     'download': download,
+    'filter' : mfilter,
     'test': test
 }
 
