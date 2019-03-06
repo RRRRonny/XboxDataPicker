@@ -13,11 +13,14 @@ class ApiSupporter:
     '''
     conf_file 可以缺省,缺省情况下直接使用 config 下的 api.url.ini 文件
     '''
-    def __init__(self,conf_file = "defualt"):
+    def __init__(self,conf_file = "default"):
         if conf_file == "default":
+            #print("use default config file")
             self.conf_file = os.path.abspath('.') + '/config' + '/api.url.ini'
         else:
+            #print("use custom config file")
             self.conf_file = conf_file
+        #print(self.conf_file)
         self.configparser = configparser.ConfigParser()
         self.__load_api_url()
 

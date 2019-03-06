@@ -5,6 +5,7 @@ import sqlite3
 import configparser
 import requests
 import re
+import os
 
 from . import api_supporter 
 
@@ -21,13 +22,28 @@ class DataProvider:
         cparser.read(config_file)
         self.api_key = cparser['default']['apikey']
         # init the DataBaseHelper and NetworkRequester
-        self.data_helper = DataBaseHelper(self.database)
+        self.data_helper = DataBaseHelper()
         self.request_helper = NetworkRequester(self.api_key)
 
 
     def get_xuid(self,gametag):
-        return "xuid"
-    
+        # 从数据库查询
+        result = self.data_helper.get_xuid(gametag)
+        if  result['isSuccess'] :
+            print("read data from local database")
+            return result['content']
+        else:
+            print("loacl databse has no data")
+            # 从 api 拉取
+            r = self.request_helper.request("Gamertag XUID",gamertag = gametag)
+            if r.status_code == 200:
+                # 写入数据库
+                self.data_helper.insert_gamertag_and_xuid(gametag,r.text)
+                return r.text
+            else:
+                return "didn't get the xuid form xboxapi.com , the result is {}".format(r.text)
+
+
     def get_gametag(self,xuid):
         return "gametag"
 
@@ -40,8 +56,27 @@ class DataProvider:
     def get_player_achievements(self,xuid,achievement_id):
         pass
 
-    def get_player_status(self,xuid):
+    def get_player_profile(self,xuid):
         pass
+
+    def get_player_gamecard(self,xuid):
+        pass
+
+    def get_palyer_game_stats(self,xuid):
+        pass
+    
+    def get_player_singal_game_stat(self,xuid,titleid):
+        pass
+    
+
+
+
+
+
+
+
+
+    
 '''
 网络请求
 todo
@@ -66,7 +101,8 @@ class NetworkRequester:
     def request(self,api_name,**values):
         url = self.supporter.get_api_url(api_name)
         url = self.replace(values,url)
-        response = requests.get(url,self.request_header)
+        response = requests.get(url,headers = self.request_header)
+
         return response
 
     def replace(self,value_dict,origin_str):
@@ -82,33 +118,92 @@ class NetworkRequester:
 数据据查询
 '''
 class DataBaseHelper:
-    database = "test.db"
+    database = "default.db"
+
+    def __init__(self,database = "default.db"):
+        self.database = os.path.abspath('.') + '/data/' + database
+        self.__check_table_stat()
 
 
-    def __init__(self,database):
-        self.database = database
-    
-    def create_table(self,sql):
+    def get_xuid(self,gamertag):
+        sql = 'select xuid from gamer_info where gamertag = ?'
+        result = self.execute_sql(sql,gamertag)
+        if len(result['result_list']) > 0:
+            return {
+                'isSuccess' : True,
+                'content' : result['result_list'][0][0]
+            }
+        else:
+            return{
+                'isSuccess' : False,
+                'content' : None
+            }
+
+    def get_gametag(self,xuid):
         pass
 
-    def delete_table(self,table_nmame):
-        pass
 
-    def execute_sql(self,sql):
-        cursor = self.get_conn().cursor()
-        cursor.execute(sql)
+    def insert_gamertag_and_xuid(self,gamertag,xuid):
+        sql = "insert into gamer_info(gamertag,xuid) values (?,?)"
+        result = self.execute_sql(sql,gamertag,xuid)
+        return result['count']
+
+
+    def execute_sql(self,sql,*values):
+        # print("the vaules is {}".format(values))
+        cursor =  self.__get_conn().cursor()
+        cursor.execute(sql,values)
+        # cursor.execute("select xuid from gamer_info where gamertag = 'SevenFii'")
+        count = cursor.rowcount
+        result_list = cursor.fetchall()
         cursor.close()
-        self.close_conn()
-        
-    def get_conn(self):
+        self.conn.commit()
+        self.__close_conn()
+        # print("count is {}".format(count))
+        # print("result is {}".format(result_list))
+        return {
+            'count' : count,
+            'result_list' : result_list
+        }
+
+
+    # pirvate functions
+    def __get_conn(self):
         self.conn = sqlite3.connect(self.database)
         return self.conn
     
-    def close_conn(self):
+    def __close_conn(self):
         self.conn.close()
 
+    
+    def __check_table_stat(self):
+        conf = configparser.ConfigParser()
+        current_path = os.path.abspath('.')
+        conf_path = current_path + '/config/app.config.ini'
+        conf.read(conf_path)
+        # print("config file path is {}".format(conf_path))
+        if not conf['database'].getboolean('table_created'):
+            # 未创建表
+            self.__create_all_tables()
+            conf['database']['table_created'] = 'True'
+            with open(conf_path,'w') as f:
+                conf.write(f)
+
+    def __create_all_tables(self):
+        self.__create_gamer_table()
+
+    
 
 
-
-
-
+    def __create_gamer_table(self):
+        cursor =  self.__get_conn().cursor()
+        cursor.execute('''CREATE TABLE IF NOT EXISTS gamer_info(
+				id integer PRIMARY KEY AUTOINCREMENT,
+				gamertag text NOT NULL,
+				xuid text NOT NULL,
+				onegame_count integer,
+				threegame_count integer,
+				achievement_point integer
+				)''')
+        cursor.close()
+        self.__close_conn()

@@ -19,6 +19,7 @@ import configparser
 import re
 import json
 import os
+import sqlite3
 
 # custom moudle
 import core.data_provider as dp
@@ -57,13 +58,9 @@ def load_config():
 
 
 def search(gametag):
-    print("search : now unavailable")
-    request_url = "https://xboxapi.com/v2/xuid/{gametag}"
-    request_url = re.sub(r'\{gametag\}', gametag, request_url)
-    # print("the request url is {}".format(request_url))
-    global headers
-    r = requests.get(request_url, headers=headers)
-    print(r.text)
+    provider = dp.DataProvider("default.db",CONFIG_NAME)
+    xuid = provider.get_xuid(gametag)
+    print(xuid)
 
 
 def info(gametag):
@@ -89,20 +86,17 @@ def test(message):
     print("execute func : test")
     # test the sqlite
     if message == 'db':
-    #     conn = sqlite3.connect('data/test.db')
-    #     c = conn.cursor()
-    #     c.execute('''CREATE TABLE COMPANY
-    #    (ID INT PRIMARY KEY     NOT NULL,
-    #    NAME           TEXT    NOT NULL,
-    #    AGE            INT     NOT NULL,
-    #    ADDRESS        CHAR(50),
-    #    SALARY         REAL);''')
-    #     conn.commit()
-    #     conn.close()
-        db_helper = dp.DataBaseHelper('data/test.db')
-        conn = db_helper.get_conn()
-        cursor = conn.cursor()
-        cursor.execute()
+        conn = sqlite3.connect('data/default.db')
+        c = conn.cursor()
+        c.execute('''CREATE TABLE COMPANY
+       (ID INT PRIMARY KEY     NOT NULL,
+       NAME           TEXT    NOT NULL,
+       AGE            INT     NOT NULL,
+       ADDRESS        CHAR(50),
+       SALARY         REAL);''')
+        conn.commit()
+        conn.close()
+    
 
 
 
@@ -168,7 +162,7 @@ def mian():
     value = args.value
 
     # debug
-    print("get the input values, command is {} , value is {}".format(command, value))
+    # print("get the input values, command is {} , value is {}".format(command, value))
 
     command_func = command_filter[command]
     command_func(value)
